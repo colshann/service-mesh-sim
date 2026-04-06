@@ -19,10 +19,10 @@ func isPrime(n int) bool {
 	return true
 }
 
-// FindPrimes returns the number of prime numbers from 1 to n.
-func FindPrimes(n int) int {
+// FindPrimes returns the number of prime numbers from start to end.
+func FindPrimes(start int, end int) int {
 	count := 0
-	for i := 2; i <= n; i++ {
+	for i := start; i <= end; i++ {
 		if isPrime(i) {
 			count++
 		}
@@ -30,20 +30,27 @@ func FindPrimes(n int) int {
 	return count
 }
 
-// FindPrimesGoroutines returns the number of prime numbers from 1 to n using goroutines for concurrent processing.
-func FindPrimesGoroutines(n int, numGoroutines int) int {
+// FindPrimesGoroutines returns the number of prime numbers from start to end using goroutines for concurrent processing. Uses chunking for division of work among goroutines.
+func FindPrimesGoroutines(start int, end int, numGoroutines int) int {
 	count := 0
-	ch := make(chan int)
+	chunkSize := (end - start) / numGoroutines
+	ch := make(chan int, numGoroutines)
 	for i := 0; i < numGoroutines; i++ {
-		go func(start int) {
+		s := start + i*chunkSize
+		e := s + chunkSize - 1
+		if i == numGoroutines-1 {
+			e = end
+		}
+
+		go func(s, e int) {
 			localCount := 0
-			for j := start; j <= n; j += numGoroutines {
+			for j := s; j <= e; j++ {
 				if isPrime(j) {
 					localCount++
 				}
 			}
 			ch <- localCount
-		}(i + 2)
+		}(s, e)
 	}
 	for i := 0; i < numGoroutines; i++ {
 		count += <-ch
