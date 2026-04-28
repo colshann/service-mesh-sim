@@ -8,7 +8,7 @@ type Instance struct {
 	ID       string
 	Address  string
 	Status   Status
-	LastSeen time.Time
+	LastSeen time.Time // Future Optimization: change to atomic.Int64
 }
 
 type Status string
@@ -27,4 +27,13 @@ type RegisterRequest struct {
 type DeregisterRequest struct {
 	ServiceName string `json:"service_name"`
 	InstanceID  string `json:"instance_id"`
+}
+
+type HeartbeatRequest struct {
+	ServiceName string `json:"service_name"`
+	InstanceID  string `json:"instance_id"`
+}
+
+type GetInstanceRequest struct {
+	ServiceName string `json:"service_name"`
 }

@@ -7,4 +7,5 @@ var (
 	ErrMissingServiceName = errors.New("missing service name")
 	ErrMissingInstanceID  = errors.New("missing instance ID")
 	ErrMissingAddress     = errors.New("missing address")
+	ErrServiceNotFound    = errors.New("service not found")
 )

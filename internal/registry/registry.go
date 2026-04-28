@@ -77,3 +77,54 @@ func (r *Registry) Deregister(req DeregisterRequest) error {
 
 	return nil
 }
+
+func (r *Registry) ReceiveHeartbeat(req HeartbeatRequest) error {
+	// Validate input
+	if req.ServiceName == "" {
+		return ErrMissingServiceName
+	}
+	if req.InstanceID == "" {
+		return ErrMissingInstanceID
+	}
+
+	// Full lock used for simplicity
+	// Future optimization: Change Instance.LastSeen to atomic.Int64 so only read lock is needed here
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Check instanceID exists
+	instances, ok := r.services[req.ServiceName]
+	if !ok {
+		return nil
+	}
+	instance, exists := instances[req.InstanceID]
+	if !exists {
+		return nil
+	}
+
+	instance.LastSeen = time.Now()
+	return nil
+}
+
+func (r *Registry) GetInstances(req GetInstanceRequest) ([]Instance, error) {
+
+	// Validate input
+	if req.ServiceName == "" {
+		return nil, ErrMissingServiceName
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	instancesMap, ok := r.services[req.ServiceName]
+	if !ok {
+		return nil, ErrServiceNotFound
+	}
+
+	instances := make([]Instance, 0, len(instancesMap))
+	for _, instance := range instancesMap {
+		instances = append(instances, *instance)
+	}
+	return instances, nil
+
+}
