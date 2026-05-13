@@ -17,6 +17,7 @@ func NewRegistry() *Registry {
 }
 
 // Important:: This method uses UPSERT pattern. If registration is duplicated on the same instance ID, it will overwrite the existing entry, acting as an update.
+// This implementation assumes the given InstanceID's are unique per instance, otherwise ID conflicts will cause the newest entry to overwrite the existing one.
 func (r *Registry) Register(req RegisterRequest) error {
 	// Validate input
 	if req.ServiceName == "" {
@@ -38,13 +39,14 @@ func (r *Registry) Register(req RegisterRequest) error {
 	}
 
 	// Register the instance
-	r.services[req.ServiceName][req.InstanceID] = &Instance{ID: req.InstanceID, Address: req.Address, Status: StatusHealthy, LastSeen: time.Now()}
+	instance := &Instance{ID: req.InstanceID, Address: req.Address, Status: StatusHealthy}
+	instance.LastSeen.Store(time.Now().Unix())
+	r.services[req.ServiceName][req.InstanceID] = instance
 
 	return nil
 }
 
 // Important:: This method is idempotent. If the instance is not found, it will simply return nil without error.
-// Potential Breach: Address is not required for deregistration, which could lead to accidental deregistration if instance ID is reused across different services. Consider adding a check to ensure instance ID is unique across all services or require address for deregistration as well.
 func (r *Registry) Deregister(req DeregisterRequest) error {
 	// Validate input
 	if req.ServiceName == "" {
@@ -87,10 +89,9 @@ func (r *Registry) ReceiveHeartbeat(req HeartbeatRequest) error {
 		return ErrMissingInstanceID
 	}
 
-	// Full lock used for simplicity
-	// Future optimization: Change Instance.LastSeen to atomic.Int64 so only read lock is needed here
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	// Only read lock required since Instance.LastSeen is atomic
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
 	// Check instanceID exists
 	instances, ok := r.services[req.ServiceName]
@@ -102,11 +103,12 @@ func (r *Registry) ReceiveHeartbeat(req HeartbeatRequest) error {
 		return nil
 	}
 
-	instance.LastSeen = time.Now()
+	// Update LastSeen timestamp atomically
+	instance.LastSeen.Store(time.Now().Unix())
 	return nil
 }
 
-func (r *Registry) GetInstances(req GetInstanceRequest) ([]Instance, error) {
+func (r *Registry) GetInstances(req GetInstanceRequest) ([]InstanceSnapshot, error) {
 
 	// Validate input
 	if req.ServiceName == "" {
@@ -116,15 +118,62 @@ func (r *Registry) GetInstances(req GetInstanceRequest) ([]Instance, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	instancesMap, ok := r.services[req.ServiceName]
+	// Check service exists
+	instances, ok := r.services[req.ServiceName]
 	if !ok {
 		return nil, ErrServiceNotFound
 	}
 
-	instances := make([]Instance, 0, len(instancesMap))
-	for _, instance := range instancesMap {
-		instances = append(instances, *instance)
+	// Copy instance data to snapshot list to avoid exposing internal state and prevent copying atomic fields
+	snapshots := make([]InstanceSnapshot, 0, len(instances))
+	for _, instance := range instances {
+		snapshots = append(snapshots, InstanceSnapshot{
+			ID:       instance.ID,
+			Address:  instance.Address,
+			Status:   instance.Status,
+			LastSeen: instance.LastSeen.Load(), // Safely load atomic LastSeen
+		})
 	}
-	return instances, nil
+	return snapshots, nil
+
+}
+
+// Instance cleanup logic that scans for instances that haven't sent a heartbeat within the expected interval (ttl) and removes them from the registry.
+// Uses two-pass approach to reduce time spent holding a write lock: eliminates write lock entirely if no instances are stale and only iterates through marked instances for cleanup rather than entire registry.
+func (r *Registry) CleanupStaleInstances(ttl time.Duration) {
+
+	markedInstances := make([]Pair[string, *Instance], 0) // List of instances to be removed after recheck
+	now := time.Now().Unix()
+
+	// Search through instance list for instances that haven't received a heartbeat/reregister in >ttl and add to markedInstances
+	r.mu.RLock()
+	for serviceName, instances := range r.services {
+		for _, instance := range instances {
+			if now-instance.LastSeen.Load() > int64(ttl.Seconds()) {
+				markedInstances = append(markedInstances, Pair[string, *Instance]{First: serviceName, Second: instance}) // Uses Pair struct to store serviceName and instance reference for later cleanup
+			}
+		}
+	}
+	r.mu.RUnlock()
+
+	// If no instances are marked for cleanup, return early to avoid unnecessary write lock
+	if len(markedInstances) == 0 {
+		return
+	}
+
+	// Remove marked instances, cleanup if needed
+	recheckNow := time.Now().Unix()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, markedInstance := range markedInstances {
+		// Recheck for updated heartbeats between initial check and newly acquired write lock
+		if recheckNow-markedInstance.Second.LastSeen.Load() > int64(ttl.Seconds()) {
+			delete(r.services[markedInstance.First], markedInstance.Second.ID)
+			// Clean up service map if empty
+			if len(r.services[markedInstance.First]) == 0 {
+				delete(r.services, markedInstance.First)
+			}
+		}
+	}
 
 }
