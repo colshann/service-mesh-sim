@@ -124,14 +124,13 @@ func (r *Registry) GetInstances(req GetInstanceRequest) ([]InstanceSnapshot, err
 		return nil, ErrServiceNotFound
 	}
 
-	// Copy instance data to snapshot list to avoid exposing internal state and prevent copying atomic fields
+	// Copy instance data to snapshot list to avoid exposing internal state and registry-specific data
 	snapshots := make([]InstanceSnapshot, 0, len(instances))
 	for _, instance := range instances {
 		snapshots = append(snapshots, InstanceSnapshot{
-			ID:       instance.ID,
-			Address:  instance.Address,
-			Status:   instance.Status,
-			LastSeen: instance.LastSeen.Load(), // Safely load atomic LastSeen
+			ID:      instance.ID,
+			Address: instance.Address,
+			Status:  instance.Status, // Included for potential future use, not currently used in registry or loadbalancer logic
 		})
 	}
 	return snapshots, nil

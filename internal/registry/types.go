@@ -20,10 +20,9 @@ type Instance struct {
 }
 
 type InstanceSnapshot struct {
-	ID       string
-	Address  string
-	Status   Status
-	LastSeen int64 // Unix timestamp in seconds for snapshot
+	ID      string
+	Address string
+	Status  Status
 }
 
 // ----------- Status structs -----------
