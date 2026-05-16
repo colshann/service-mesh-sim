@@ -26,8 +26,8 @@ func (r *Registry) Register(req RegisterRequest) error {
 	if req.InstanceID == "" {
 		return ErrMissingInstanceID
 	}
-	if req.Address == "" {
-		return ErrMissingAddress
+	if req.URL == "" {
+		return ErrMissingURL
 	}
 
 	r.mu.Lock()
@@ -39,7 +39,7 @@ func (r *Registry) Register(req RegisterRequest) error {
 	}
 
 	// Register the instance
-	instance := &Instance{ID: req.InstanceID, Address: req.Address, Status: StatusHealthy}
+	instance := &Instance{ID: req.InstanceID, URL: req.URL, Status: StatusHealthy}
 	instance.LastSeen.Store(time.Now().Unix())
 	r.services[req.ServiceName][req.InstanceID] = instance
 
@@ -128,9 +128,9 @@ func (r *Registry) GetInstances(req GetInstancesRequest) ([]InstanceSnapshot, er
 	snapshots := make([]InstanceSnapshot, 0, len(instances))
 	for _, instance := range instances {
 		snapshots = append(snapshots, InstanceSnapshot{
-			ID:      instance.ID,
-			Address: instance.Address,
-			Status:  instance.Status, // Included for potential future use, not currently used in registry or loadbalancer logic
+			ID:     instance.ID,
+			URL:    instance.URL,
+			Status: instance.Status, // Included for potential future use, not currently used in registry or loadbalancer logic
 		})
 	}
 	return snapshots, nil

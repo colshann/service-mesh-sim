@@ -14,15 +14,15 @@ type Pair[u, v any] struct {
 
 type Instance struct {
 	ID       string
-	Address  string
+	URL      string
 	Status   Status
 	LastSeen atomic.Int64 // Unix timestamp in seconds for LastSeen to ensure atomic updates
 }
 
 type InstanceSnapshot struct {
-	ID      string
-	Address string
-	Status  Status
+	ID     string
+	URL    string
+	Status Status
 }
 
 // ----------- Status structs -----------
@@ -39,17 +39,19 @@ const (
 type RegisterRequest struct {
 	ServiceName string `json:"service_name"`
 	InstanceID  string `json:"instance_id"`
-	Address     string `json:"address"`
+	URL         string `json:"url"`
 }
 
 type DeregisterRequest struct {
 	ServiceName string `json:"service_name"`
 	InstanceID  string `json:"instance_id"`
+	URL         string `json:"url"`
 }
 
 type HeartbeatRequest struct {
 	ServiceName string `json:"service_name"`
 	InstanceID  string `json:"instance_id"`
+	URL         string `json:"url"`
 }
 
 type GetInstancesRequest struct {
