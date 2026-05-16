@@ -108,7 +108,7 @@ func (r *Registry) ReceiveHeartbeat(req HeartbeatRequest) error {
 	return nil
 }
 
-func (r *Registry) GetInstances(req GetInstanceRequest) ([]InstanceSnapshot, error) {
+func (r *Registry) GetInstances(req GetInstancesRequest) ([]InstanceSnapshot, error) {
 
 	// Validate input
 	if req.ServiceName == "" {

@@ -133,19 +133,22 @@ func (r *Registry) HandleGetInstances(w http.ResponseWriter, req *http.Request) 
 	}
 
 	// Decode request body into GetInstanceRequest struct
-	var getInstanceReq GetInstanceRequest
-	if err := decodeJSON(req, &getInstanceReq); err != nil {
+	var getInstancesReq GetInstancesRequest
+	if err := decodeJSON(req, &getInstancesReq); err != nil {
 		http.Error(w, "Invalid request payload", http.StatusBadRequest)
 		return
 	}
 
 	// Process get instances
-	instances, err := r.GetInstances(getInstanceReq)
+	instances, err := r.GetInstances(getInstancesReq)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	getInstancesResp := GetInstancesResponse{
+		Instances: instances,
+	}
 	// Response
-	writeJSON(w, http.StatusOK, instances)
+	writeJSON(w, http.StatusOK, getInstancesResp)
 }

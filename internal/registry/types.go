@@ -52,6 +52,10 @@ type HeartbeatRequest struct {
 	InstanceID  string `json:"instance_id"`
 }
 
-type GetInstanceRequest struct {
+type GetInstancesRequest struct {
 	ServiceName string `json:"service_name"`
+}
+
+type GetInstancesResponse struct {
+	Instances []InstanceSnapshot `json:"instances"`
 }
